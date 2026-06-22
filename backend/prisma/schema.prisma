@@ -1,0 +1,240 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  subdomain String?  @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users        User[]
+  companies    Company[]
+  contacts     Contact[]
+  deals        Deal[]
+  tickets      Ticket[]
+  interactions Interaction[]
+  onboardingLinks OnboardingLink[]
+  agentTasks   AgentTask[]
+
+  @@map("tenants")
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("OWNER") // OWNER (full access), CLIENT (limited)
+  contactId String?  @map("contact_id") @db.Uuid
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@map("users")
+}
+
+model Company {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  domain    String?
+  industry  String?
+  size      String?
+  website   String?
+  score     Float    @default(0.0)
+  tags      String[] @default([])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contacts   Contact[]
+  deals      Deal[]
+  tickets    Ticket[]
+  interactions Interaction[]
+  onboardingLinks OnboardingLink[]
+
+  @@map("companies")
+}
+
+model Contact {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  companyId    String?  @map("company_id") @db.Uuid
+  name         String
+  email        String
+  phone        String?
+  role         String?
+  stage        String   @default("LEAD")
+  status       String   @default("ACTIVE")
+  score        Float    @default(0.0)
+  source       String?
+  tags         String[] @default([])
+  customFields Json     @default("{}") @map("custom_fields")
+  healthScore  Float    @default(100.0) @map("health_score")
+  enrichedAt   DateTime? @map("enriched_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company  Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  deals    Deal[]
+  tickets  Ticket[]
+  interactions Interaction[]
+    users    User[]
+    onboardingLinks OnboardingLink[]
+
+  @@unique([tenantId, email])
+  @@map("contacts")
+}
+
+model Deal {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  contactId   String?  @map("contact_id") @db.Uuid
+  companyId   String?  @map("company_id") @db.Uuid
+  name        String
+  stage       String   @default("PROSPECT")
+  amount      Float    @default(0.0)
+  status      String   @default("OPEN")
+  closeReason String?  @map("close_reason")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  interactions Interaction[]
+
+  @@map("deals")
+}
+
+model Ticket {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  contactId   String?  @map("contact_id") @db.Uuid
+  companyId   String?  @map("company_id") @db.Uuid
+  subject     String
+  description String
+  priority    String   @default("LOW")
+  status      String   @default("OPEN")
+  category    String   @default("GENERAL")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@map("tickets")
+}
+
+model Interaction {
+  id          String            @id @default(uuid()) @db.Uuid
+  tenantId    String            @map("tenant_id") @db.Uuid
+  contactId   String?           @map("contact_id") @db.Uuid
+  companyId   String?           @map("company_id") @db.Uuid
+  dealId      String?           @map("deal_id") @db.Uuid
+  channel     String
+  direction   String
+  content     String
+  summary     String?
+  sentiment   String            @default("NEUTRAL")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contact      Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  company      Company?         @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  deal         Deal?            @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  trajectories AgentTrajectory[]
+
+  @@map("interactions")
+}
+
+model AgentTrajectory {
+  id            String      @id @default(uuid()) @db.Uuid
+  interactionId String      @map("interaction_id") @db.Uuid
+  thought       String
+  action        String
+  params        Json        @default("{}")
+  result        String?
+  confidence    Float       @default(1.0)
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  interaction   Interaction @relation(fields: [interactionId], references: [id], onDelete: Cascade)
+
+  @@map("agent_trajectories")
+}
+
+model OnboardingLink {
+  id        String   @id @default(uuid()) @db.Uuid
+  token     String   @unique
+  tenantId  String   @map("tenant_id") @db.Uuid
+  contactId String   @map("contact_id") @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  status    String   @default("PENDING")
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_links")
+}
+
+model AgentTask {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  agent     String
+  type      String
+  status    String    @default("ACTIVE")
+  config    Json      @default("{}")
+  interval  Int       @default(3600)
+  lastRunAt DateTime? @map("last_run_at")
+  nextRunAt DateTime? @map("next_run_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("agent_tasks")
+}
+
+model ContentLibrary {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  companyId String   @map("company_id") @db.Uuid
+  title     String
+  content   String
+  category  String
+  embedding Float[]
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("content_library")
+}
+
+model CrmOutbox {
+  id           String   @id @default(uuid()) @db.Uuid
+  eventType    String   @map("event_type")
+  payload      Json
+  status       String   @default("PENDING")
+  retryCount   Int      @default(0) @map("retry_count")
+  errorMessage String?  @map("error_message")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("crm_outbox")
+}

@@ -1,0 +1,24 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+
+.env
+.env.local
+.env.development
+.env.production
+
+*.log
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+*.pem
+.vercel
+
+**/public/uploads/
+
+# Agent skill files (local tools, not project code)
+.agents/
+skills-lock.json

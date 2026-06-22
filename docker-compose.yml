@@ -1,0 +1,56 @@
+name: salesgenius
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: salesgenius-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: asef
+      POSTGRES_DB: salesgenius
+    ports:
+      - "5432:5432"
+    volumes:
+      - salesgenius-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d salesgenius"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: salesgenius-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # Pull API keys from backend/.env, then override the DB URL to the compose service
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:asef@db:5432/salesgenius?schema=public
+      PORT: "4000"
+      NODE_ENV: production
+    ports:
+      - "4000:4000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Inlined into the client bundle at build time; browser reaches backend via host port
+        NEXT_PUBLIC_BACKEND_URL: http://localhost:4000
+    container_name: salesgenius-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  salesgenius-db-data:
