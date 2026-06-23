@@ -137,8 +137,9 @@ export function ChatShell() {
 
       // SSE
       eventSourceRef.current?.close();
+      const token = typeof window !== "undefined" ? localStorage.getItem("sg_token") : "";
       const sse = new EventSource(
-        `${api.backendUrl}/api/agent/stream/${sessionId}`
+        `${api.backendUrl}/api/agent/stream/${sessionId}?token=${token}`
       );
       eventSourceRef.current = sse;
 
@@ -176,9 +177,10 @@ export function ChatShell() {
 
       // POST
       try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("sg_token") : "";
         await fetch(`${api.backendUrl}/api/agent/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({
             sessionId,
             contactId: selectedContact?.id,

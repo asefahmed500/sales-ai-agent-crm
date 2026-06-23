@@ -88,24 +88,29 @@ export default function CompaniesPage() {
 
   async function handleSave(company: Company) {
     try {
-      const token = localStorage.getItem("sg_token");
-      const res = await fetch(`${api.backendUrl}/api/crm/companies/${company.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          name: editForm.name,
-          domain: editForm.domain || null,
-          industry: editForm.industry || null,
-          size: editForm.size || null,
-          website: editForm.website || null,
-        }),
-      });
-      if (!res.ok) throw new Error("Update failed");
+      await api.updateCompany(company.id, {
+        name: editForm.name,
+        domain: editForm.domain || null,
+        industry: editForm.industry || null,
+        size: editForm.size || null,
+        website: editForm.website || null,
+      } as Partial<Company>);
       showToast("Company updated");
       setExpandedId(null);
       load();
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Update failed");
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Are you sure you want to delete this company?")) return;
+    try {
+      await api.deleteCompany(id);
+      showToast("Company deleted");
+      load();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Delete failed");
     }
   }
 
@@ -213,7 +218,7 @@ export default function CompaniesPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
-                  {["Name", "Domain", "Industry", "Size", "Score"].map((h) => (
+                  {["Name", "Domain", "Industry", "Size", "Score", "Actions"].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{h}</th>
                   ))}
                 </tr>
@@ -230,10 +235,18 @@ export default function CompaniesPage() {
                       <td className="px-4 py-2.5 text-sm text-gray-700">{company.industry || "—"}</td>
                       <td className="px-4 py-2.5 text-sm text-gray-700">{company.size || "—"}</td>
                       <td className="px-4 py-2.5 text-sm text-gray-700">{company.score ?? "—"}</td>
+                      <td className="px-4 py-2.5">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDelete(company.id); }}
+                          className="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
+                        >
+                          Delete
+                        </button>
+                      </td>
                     </tr>
                     {expandedId === company.id && (
                       <tr key={`${company.id}-edit`}>
-                        <td colSpan={5} className="bg-gray-50 px-4 py-4">
+                        <td colSpan={6} className="bg-gray-50 px-4 py-4">
                           <div className="grid gap-4 sm:grid-cols-5">
                             <div>
                               <label className="mb-1 block text-xs font-medium text-gray-600">Name</label>

@@ -1,17 +1,17 @@
-import { Router } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { prisma } from '../core/database.js';
-import { authMiddleware, requireRole } from '../middleware/auth.js';
-import { sendOnboardedNotificationEmail } from '../services/email.service.js';
-import { notificationEvents } from './endpoints.js';
+import { prisma } from '../../core/database.js';
+import { ok, created } from '../../core/response.js';
+import { NotFoundError } from '../../core/errors.js';
+import { notify } from '../notifications/notifications.controller.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const uploadDir = path.join(__dirname, '../../public/uploads');
+const uploadDir = path.join(__dirname, '../../../public/uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const storage = multer.diskStorage({
@@ -19,18 +19,14 @@ const storage = multer.diskStorage({
   filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`),
 });
 
-const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+export const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
-export const router = Router();
-
-// Client: upload a document
-router.post('/upload', authMiddleware, requireRole('CLIENT'), upload.array('files', 5), async (req, res, next) => {
+export async function uploadDocument(req: Request, res: Response, next: NextFunction) {
   try {
     const tenantId = req.user!.tenantId;
     const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { contactId: true } });
     const contact = user?.contactId ? await prisma.contact.findUnique({ where: { id: user.contactId }, select: { companyId: true } }) : null;
     const { title, description } = req.body;
-
     const files = (req.files as Express.Multer.File[]) || [];
     const filePaths = files.map((f) => `/uploads/${f.filename}`);
 
@@ -38,34 +34,23 @@ router.post('/upload', authMiddleware, requireRole('CLIENT'), upload.array('file
       data: {
         subject: title || 'Document Submission',
         description: JSON.stringify({ text: description || '', files: filePaths }),
-        priority: 'MEDIUM',
-        status: 'PENDING_REVIEW',
+        priority: 'MEDIUM', status: 'PENDING_REVIEW',
         category: 'DOCUMENT_REVIEW',
-        contactId: user?.contactId,
-        companyId: contact?.companyId,
+        contactId: user?.contactId, companyId: contact?.companyId,
         tenant: { connect: { id: tenantId } },
       } as any,
     });
 
-    // Notify all OWNERs in the tenant
     const owners = await prisma.user.findMany({ where: { tenantId, role: 'OWNER' } });
     for (const owner of owners) {
-      notificationEvents.emit('notification', {
-        userId: owner.id,
-        type: 'document_submitted',
-        title: 'Document Submitted',
-        message: `${req.user!.name} submitted "${title || 'a document'}" for review`,
-        link: '/dashboard/documents',
-        createdAt: new Date().toISOString(),
-      });
+      notify(owner.id, 'document_submitted', 'Document Submitted', `${req.user!.name} submitted "${title || 'a document'}" for review`, '/dashboard/documents');
     }
 
-    res.status(201).json(ticket);
+    created(res, ticket);
   } catch (err) { next(err); }
-});
+}
 
-// Admin/OWNER: list all document reviews
-router.get('/', authMiddleware, async (req, res, next) => {
+export async function listAll(req: Request, res: Response, next: NextFunction) {
   try {
     const tenantId = req.user!.tenantId;
     const tickets = await prisma.ticket.findMany({
@@ -73,58 +58,43 @@ router.get('/', authMiddleware, async (req, res, next) => {
       include: { contact: true },
       orderBy: { createdAt: 'desc' },
     });
-    res.json(tickets);
+    ok(res, tickets);
   } catch (err) { next(err); }
-});
+}
 
-// Admin/OWNER: update review status + add comment
-router.put('/:id/review', authMiddleware, async (req, res, next) => {
+export async function reviewDocument(req: Request, res: Response, next: NextFunction) {
   try {
     const tenantId = req.user!.tenantId;
-    const { status, comment } = req.body; // status: APPROVED | REJECTED | PENDING_REVIEW
-
-    const id = req.params.id as string;
+    const { status, comment } = req.body;
+    const id = String(String(req.params.id));
     const ticket = await prisma.ticket.findFirst({ where: { id, tenantId } });
-    if (!ticket) return res.status(404).json({ error: 'Not found' });
+    if (!ticket) return next(new NotFoundError('Document'));
 
     const updated = await prisma.ticket.update({ where: { id: ticket.id }, data: { status } });
 
-    // Add comment as interaction
     if (comment) {
-      const contact = await prisma.contact.findUnique({ where: { id: ticket.contactId! } });
       await prisma.interaction.create({
         data: {
-          channel: 'DOCUMENT_REVIEW',
-          direction: 'INBOUND',
+          channel: 'DOCUMENT_REVIEW', direction: 'INBOUND',
           content: JSON.stringify({ reviewer: req.user!.name, comment }),
-          contactId: ticket.contactId,
-          companyId: ticket.companyId,
+          contactId: ticket.contactId, companyId: ticket.companyId,
           tenant: { connect: { id: tenantId } },
         } as any,
       });
 
-      // Notify the client
       if (ticket.contactId) {
         const clientUser = await prisma.user.findFirst({ where: { contactId: ticket.contactId, tenantId } });
         if (clientUser) {
-          notificationEvents.emit('notification', {
-            userId: clientUser.id,
-            type: 'document_reviewed',
-            title: 'Document Reviewed',
-            message: `Your document "${ticket.subject}" was ${status.toLowerCase()} with feedback.`,
-            link: '/portal/documents',
-            createdAt: new Date().toISOString(),
-          });
+          notify(clientUser.id, 'document_reviewed', 'Document Reviewed', `Your document "${ticket.subject}" was ${status.toLowerCase()} with feedback.`, '/portal/documents');
         }
       }
     }
 
-    res.json(updated);
+    ok(res, updated);
   } catch (err) { next(err); }
-});
+}
 
-// Client: get own documents
-router.get('/mine', authMiddleware, requireRole('CLIENT'), async (req, res, next) => {
+export async function listMine(req: Request, res: Response, next: NextFunction) {
   try {
     const tenantId = req.user!.tenantId;
     const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { contactId: true } });
@@ -132,21 +102,20 @@ router.get('/mine', authMiddleware, requireRole('CLIENT'), async (req, res, next
       where: { tenantId, category: 'DOCUMENT_REVIEW', contactId: user?.contactId },
       orderBy: { createdAt: 'desc' },
     });
-    res.json(tickets);
+    ok(res, tickets);
   } catch (err) { next(err); }
-});
+}
 
-// Client or Admin: get comments for a document
-router.get('/:id/comments', authMiddleware, async (req, res, next) => {
+export async function getComments(req: Request, res: Response, next: NextFunction) {
   try {
     const tenantId = req.user!.tenantId;
-    const id = req.params.id as string;
+    const id = String(String(req.params.id));
     const ticket = await prisma.ticket.findFirst({ where: { id, tenantId } });
-    if (!ticket) return res.status(404).json({ error: 'Not found' });
+    if (!ticket) return next(new NotFoundError('Document'));
     const interactions = await prisma.interaction.findMany({
       where: { contactId: ticket.contactId!, channel: 'DOCUMENT_REVIEW' },
       orderBy: { createdAt: 'asc' },
     });
-    res.json(interactions);
+    ok(res, interactions);
   } catch (err) { next(err); }
-});
+}

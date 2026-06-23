@@ -84,7 +84,9 @@ export function Sidebar({
                         onClick={() => onSelect(c.id)}
                         className="flex min-w-0 flex-1 items-center gap-2 text-left"
                       >
-                        <span className="text-sm">{agent?.icon ?? "💬"}</span>
+                        <span className="text-sm">{agent?.icon ?? (
+                          <svg className="inline-block h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        )}</span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-xs font-medium text-ink">
                             {c.title}

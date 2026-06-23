@@ -39,11 +39,7 @@ export default function PortalDocuments() {
       fd.append("title", title);
       fd.append("description", desc);
       files.forEach((f) => fd.append("files", f));
-      const token = localStorage.getItem("sg_token");
-      const res = await fetch(`${backendUrl}/api/documents/upload`, {
-        method: "POST", headers: { Authorization: `Bearer ${token}` }, body: fd,
-      });
-      if (!res.ok) throw new Error("Upload failed");
+      await api.uploadDocument(fd);
       setShowForm(false);
       setTitle(""); setDesc(""); setFiles([]);
       const updated = await api.getMyDocuments();
@@ -125,12 +121,12 @@ export default function PortalDocuments() {
                   </span>
                 </div>
                 {p.text && <p className="mt-2 text-xs text-gray-600">{p.text}</p>}
-                {p.files.length > 0 && (
+                {p.files && p.files.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {p.files.map((fp, i) => (
                       <a key={i} href={`${backendUrl}${fp}`} target="_blank" rel="noopener noreferrer"
                         className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100">
-                        📎 File {i + 1}
+                        File {i + 1}
                       </a>
                     ))}
                   </div>

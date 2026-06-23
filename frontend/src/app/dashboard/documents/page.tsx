@@ -74,11 +74,11 @@ export default function AdminDocumentsPage() {
                       {d.contact?.name || "Unknown"} &lt;{d.contact?.email || "?"}&gt; &middot; {new Date(d.createdAt).toLocaleDateString()}
                     </p>
                     {p.text && <p className="mt-2 text-xs text-gray-600">{p.text}</p>}
-                    {p.files.length > 0 && (
+                    {p.files && p.files.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {p.files.map((fp, i) => (
                           <a key={i} href={`${backendUrl}${fp}`} target="_blank" rel="noopener noreferrer"
-                            className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100">📎 File {i + 1}</a>
+                            className="rounded bg-blue-50 px-2 py-1 text-xs text-blue-600 hover:bg-blue-100">File {i + 1}</a>
                         ))}
                       </div>
                     )}

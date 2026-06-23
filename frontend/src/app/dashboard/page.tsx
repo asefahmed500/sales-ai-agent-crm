@@ -51,7 +51,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-gray-900">
-          Welcome back{user ? `, ${user.name.split(" ")[0]}` : ""} 👋
+          Welcome back{user ? `, ${user.name.split(" ")[0]}` : ""}
         </h2>
         <p className="text-sm text-gray-500">Here&apos;s what&apos;s happening with your sales pipeline.</p>
       </div>

@@ -1,8 +1,8 @@
 import { prisma } from '../core/database.js';
-import { trajectoryEvents } from '../api/endpoints.js';
+import { trajectoryEvents } from '../features/chat/chat.controller.js';
 import { generateText, tool, stepCountIs } from 'ai';
 import { z } from 'zod';
-import { getAgent, type AgentId } from '../agents.js';
+import { getAgent, type AgentId } from '../features/chat/agents.js';
 import { researchNiche, type ResearchResult } from './web_search.js';
 
 const CHAT_MODEL = process.env.AI_CHAT_MODEL || 'openai/gpt-5.4';
@@ -18,7 +18,7 @@ interface AgentParams {
 
 export async function runAgentPipeline(params: AgentParams) {
   const { sessionId, message, channel, tenantId } = params;
-  const agent = getAgent(params.agent);
+  const agent = getAgent(params.agent || 'rep')!;
   console.log(`[${agent.id}] agent loop session=${sessionId} contact=${params.contactId || 'none'}`);
 
   // Resolve a contact (explicit, or the most recent LEAD for Scout)

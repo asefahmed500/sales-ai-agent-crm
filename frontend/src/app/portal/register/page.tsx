@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 
@@ -11,13 +11,12 @@ function RegisterForm() {
   const [verified, setVerified] = useState(false);
   const [contact, setContact] = useState<{ name: string; email: string } | null>(null);
   const [company, setCompany] = useState<{ name: string } | null>(null);
-  const [contactId, setContactId] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
 
   // Verify token on mount
-  useState(() => {
+  useEffect(() => {
     if (!token) return;
     api.verifyOnboardingToken(token)
       .then((d) => {
@@ -26,7 +25,7 @@ function RegisterForm() {
         setVerified(true);
       })
       .catch(() => setError("Invalid or expired invitation link. Please contact your admin."));
-  });
+  }, [token]);
 
   async function handleSubmit(ev: FormEvent) {
     ev.preventDefault();
@@ -39,7 +38,7 @@ function RegisterForm() {
       const res = await api.register(contact!.email, password, contact!.name);
       localStorage.setItem("sg_token", res.token);
       await api.completeOnboarding(token!);
-      router.push("/dashboard");
+      router.push("/portal");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed");
     } finally {

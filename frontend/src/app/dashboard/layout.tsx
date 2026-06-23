@@ -32,6 +32,7 @@ const navItems = [
   { label: "Tickets", href: "/dashboard/tickets", icon: "M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" },
   { label: "Agent Chat", href: "/dashboard/chat", icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" },
   { label: "Clients", href: "/dashboard/clients", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" },
+  { label: "Messages", href: "/dashboard/messages", icon: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" },
   { label: "Documents", href: "/dashboard/documents", icon: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" },
 ];
 
@@ -70,7 +71,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // SSE notifications
   useEffect(() => {
     if (!user?.id) return;
-    const es = new EventSource(`${backendUrl}/api/notifications/stream/${user.id}`);
+    const token = localStorage.getItem("sg_token");
+    if (!token) return;
+    const es = new EventSource(`${backendUrl}/api/notifications/stream/${user.id}?token=${token}`);
     es.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data);

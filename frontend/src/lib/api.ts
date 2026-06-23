@@ -86,6 +86,14 @@ export function createCompany(data: Partial<import("./types").Company>) {
   return request<import("./types").Company>("/api/crm/companies", { method: "POST", body: JSON.stringify(data) });
 }
 
+export function updateCompany(id: string, data: Partial<import("./types").Company>) {
+  return request<import("./types").Company>(`/api/crm/companies/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function deleteCompany(id: string) {
+  return request<{ success: boolean }>(`/api/crm/companies/${id}`, { method: "DELETE" });
+}
+
 export function getCrmDeals(params?: { page?: number; stage?: string; status?: string }) {
   const q = new URLSearchParams();
   if (params?.page) q.set("page", String(params.page));
@@ -151,6 +159,43 @@ export function getAgentTasks() {
 
 export function createAgentTask(data: Partial<import("./types").AgentTask>) {
   return request<import("./types").AgentTask>("/api/crm/agent-tasks", { method: "POST", body: JSON.stringify(data) });
+}
+
+// --- Live Chat ---
+export function getConversations() {
+  return request<{ id: string; name: string; email: string; lastMessage: { content: string; direction: string; createdAt: string } | null; messageCount: number }[]>("/api/crm/conversations");
+}
+
+export function getConversationMessages(contactId: string) {
+  return request<import("./types").Interaction[]>(`/api/crm/conversations/${contactId}/messages`);
+}
+
+export function sendMessage(contactId: string, content: string) {
+  return request<import("./types").Interaction>(`/api/crm/conversations/${contactId}/messages`, { method: "POST", body: JSON.stringify({ content }) });
+}
+
+export function closeConversation(contactId: string) {
+  return request<{ success: boolean }>(`/api/crm/conversations/${contactId}/close`, { method: "POST" });
+}
+
+export function reopenConversation(contactId: string) {
+  return request<{ success: boolean }>(`/api/crm/conversations/${contactId}/reopen`, { method: "POST" });
+}
+
+export function getClientConversation() {
+  return request<import("./types").Interaction[]>("/api/client/conversation/messages");
+}
+
+export function sendClientMessage(content: string) {
+  return request<import("./types").Interaction>("/api/client/conversation/messages", { method: "POST", body: JSON.stringify({ content }) });
+}
+
+export function closeClientConversation() {
+  return request<{ success: boolean }>("/api/client/conversation/close", { method: "POST" });
+}
+
+export function reopenClientConversation() {
+  return request<{ success: boolean }>("/api/client/conversation/reopen", { method: "POST" });
 }
 
 export function getOnboardingLinks() {
@@ -248,6 +293,8 @@ export const api = {
   deleteContact,
   getCrmCompanies,
   createCompany,
+  updateCompany,
+  deleteCompany,
   getCrmDeals,
   createDeal,
   updateDeal,
@@ -262,6 +309,11 @@ export const api = {
   sendNotification,
   getAgentTasks,
   createAgentTask,
+  getConversations,
+  getConversationMessages,
+  sendMessage,
+  getClientConversation,
+  sendClientMessage,
   getOnboardingLinks,
   generateOnboardingLink,
   verifyOnboardingToken,
@@ -280,8 +332,14 @@ export const api = {
   sendChatMessage,
   agentSessionId,
   getPipelineSummary,
-  uploadDocument: (data: FormData) =>
-    request<any>("/api/documents/upload", { method: "POST", body: data, headers: {} }),
+  uploadDocument: async (data: FormData) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("sg_token") : null;
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(`${BASE}/api/documents/upload`, { method: "POST", body: data, headers });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({ error: res.statusText }))).error || `HTTP ${res.status}`);
+    return res.json();
+  },
   getMyDocuments: () =>
     request<any[]>("/api/documents/mine"),
   getDocumentReviews: () =>
