@@ -7,15 +7,26 @@ import type { Deal, Ticket } from "@/lib/types";
 export default function PortalDashboard() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getClientDeals().then(setDeals).catch(() => {});
-    api.getClientTickets().then(setTickets).catch(() => {});
+    Promise.all([
+      api.getClientDeals().then(setDeals).catch(() => {}),
+      api.getClientTickets().then(setTickets).catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, []);
 
   const wonDeals = deals.filter((d) => d.status === "WON");
   const openDeals = deals.filter((d) => d.status !== "WON");
   const openTickets = tickets.filter((t) => t.status !== "CLOSED" && t.status !== "RESOLVED");
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-sky-500 border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

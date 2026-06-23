@@ -6,11 +6,15 @@ import type { Ticket } from "@/lib/types";
 
 export default function PortalTickets() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ subject: "", description: "", priority: "MEDIUM", category: "" });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { api.getClientTickets().then(setTickets).catch(() => {}); }, []);
+  useEffect(() => {
+    setLoading(true);
+    api.getClientTickets().then(setTickets).catch(() => {}).finally(() => setLoading(false));
+  }, []);
 
   async function handleSubmit(ev: FormEvent) {
     ev.preventDefault();
@@ -21,6 +25,14 @@ export default function PortalTickets() {
       setForm({ subject: "", description: "", priority: "MEDIUM", category: "" });
       api.getClientTickets().then(setTickets).catch(() => {});
     } catch { } finally { setSaving(false); }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-sky-500 border-t-transparent" />
+      </div>
+    );
   }
 
   return (

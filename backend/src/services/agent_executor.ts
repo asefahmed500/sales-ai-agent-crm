@@ -60,7 +60,7 @@ export async function runAgentPipeline(params: AgentParams) {
   } catch (err: any) {
     console.warn(`[${agent.id}] LLM failed, running deterministic orchestrator:`, err?.cause?.message || err?.message || err);
     await emitTrajectory(`Primary LLM unavailable — ${agent.name} running deterministic orchestration`, 'orchestrator', { agent: agent.id });
-    finalResponse = await runOrchestrator(message, contact, agent, tools);
+    finalResponse = await runOrchestrator(message, contact, agent, tools, tenantId);
   }
 
   const outboundData: any = {
@@ -245,7 +245,7 @@ async function runRealLLM(args: { message: string; contact: any; agent: any; too
  * Deterministic orchestrator — fully functional without an LLM.
  * Routes by active agent + intent, drives the real tools, and formats a reply.
  */
-async function runOrchestrator(message: string, contact: any, agent: any, tools: any): Promise<string> {
+async function runOrchestrator(message: string, contact: any, agent: any, tools: any, tenantId?: string): Promise<string> {
   const lower = message.toLowerCase();
   const has = (...w: string[]) => w.some((x) => lower.includes(x));
   const name = contact?.name?.split(' ')[0] || 'there';
@@ -272,22 +272,22 @@ async function runOrchestrator(message: string, contact: any, agent: any, tools:
   }
 
   if (has('/handoff', 'hand off', 'handoff', 'pass to sales', 'engage')) {
-    const leads = await prisma.contact.findMany({ where: { stage: 'LEAD' }, orderBy: { createdAt: 'desc' }, take: 10 });
+    const leads = await prisma.contact.findMany({ where: { stage: 'LEAD', ...(tenantId ? { tenantId } : {}) }, orderBy: { createdAt: 'desc' }, take: 10 });
     if (leads.length === 0) return 'No fresh LEADs to hand off. Generate some first with `/generate <niche>`.';
     await tools.handoffToSales(leads.map((l) => l.id));
     return `🤝 Handed ${leads.length} leads to **Aria (Sales)**. They've been moved to DISCOVERY and are ready for engagement. Switch to \`/rep\` to start outreach.`;
   }
 
   if (has('/pipeline', 'pipeline', 'forecast')) {
-    const stages = await prisma.contact.groupBy({ by: ['stage'], _count: true });
-    const openDeals = await prisma.deal.aggregate({ where: { status: 'OPEN' }, _sum: { amount: true } });
-    const wonDeals = await prisma.deal.aggregate({ where: { status: 'WON' }, _sum: { amount: true } });
+    const stages = await prisma.contact.groupBy({ by: ['stage'], where: { ...(tenantId ? { tenantId } : {}) }, _count: true });
+    const openDeals = await prisma.deal.aggregate({ where: { status: 'OPEN', ...(tenantId ? { tenantId } : {}) }, _sum: { amount: true } });
+    const wonDeals = await prisma.deal.aggregate({ where: { status: 'WON', ...(tenantId ? { tenantId } : {}) }, _sum: { amount: true } });
     const lines = stages.map((s) => `• ${s.stage}: ${s._count}`).join('\n');
     return `📊 **Pipeline**\n\n${lines}\n\n💰 Open: $${(openDeals._sum.amount || 0).toLocaleString()}  |  Won: $${(wonDeals._sum.amount || 0).toLocaleString()}`;
   }
 
   if (has('/leads', 'list leads', 'show leads', 'contacts')) {
-    const leads = await prisma.contact.findMany({ include: { company: true }, orderBy: { updatedAt: 'desc' }, take: 10 });
+    const leads = await prisma.contact.findMany({ where: { ...(tenantId ? { tenantId } : {}) }, include: { company: true }, orderBy: { updatedAt: 'desc' }, take: 10 });
     if (leads.length === 0) return 'No contacts yet. Generate some with `/generate <niche>`.';
     return leads.map((l, i) => `${i + 1}. **${l.name}** — ${l.company?.name || '—'} · ${l.stage} · ${l.email}`).join('\n');
   }

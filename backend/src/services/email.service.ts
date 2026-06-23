@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { env } from '../config/env.js';
 
 const GMAIL_USER = process.env.GMAIL_USER || '';
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD || '';
@@ -42,7 +43,7 @@ Your login credentials:
 Email: ${email}
 Password: ${tempPassword}
 
-Login at: http://localhost:3000/portal/login
+Login at: ${env.FRONTEND_URL}/portal/login
 
 You can also use this link to set your own password:
 ${portalUrl}

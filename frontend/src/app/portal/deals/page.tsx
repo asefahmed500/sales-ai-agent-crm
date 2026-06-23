@@ -6,6 +6,7 @@ import type { Deal, Interaction } from "@/lib/types";
 
 export default function PortalDeals() {
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
@@ -16,7 +17,10 @@ export default function PortalDeals() {
   const [newComment, setNewComment] = useState("");
   const [commenting, setCommenting] = useState("");
 
-  const fetchDeals = useCallback(() => { api.getClientDeals().then(setDeals).catch(() => {}); }, []);
+  const fetchDeals = useCallback(() => {
+    setLoading(true);
+    api.getClientDeals().then(setDeals).catch(() => {}).finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => { fetchDeals(); }, [fetchDeals]);
 
@@ -50,6 +54,14 @@ export default function PortalDeals() {
       setComments(updated);
     } catch {} finally { setCommenting(""); }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-sky-500 border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

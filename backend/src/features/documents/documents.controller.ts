@@ -66,11 +66,11 @@ export async function reviewDocument(req: Request, res: Response, next: NextFunc
   try {
     const tenantId = req.user!.tenantId;
     const { status, comment } = req.body;
-    const id = String(String(req.params.id));
+    const id = String(req.params.id);
     const ticket = await prisma.ticket.findFirst({ where: { id, tenantId } });
     if (!ticket) return next(new NotFoundError('Document'));
 
-    const updated = await prisma.ticket.update({ where: { id: ticket.id }, data: { status } });
+    const updated = await prisma.ticket.update({ where: { id }, data: { status } });
 
     if (comment) {
       await prisma.interaction.create({
@@ -109,11 +109,12 @@ export async function listMine(req: Request, res: Response, next: NextFunction) 
 export async function getComments(req: Request, res: Response, next: NextFunction) {
   try {
     const tenantId = req.user!.tenantId;
-    const id = String(String(req.params.id));
+    const id = String(req.params.id);
     const ticket = await prisma.ticket.findFirst({ where: { id, tenantId } });
     if (!ticket) return next(new NotFoundError('Document'));
+    if (!ticket.contactId) return ok(res, []);
     const interactions = await prisma.interaction.findMany({
-      where: { contactId: ticket.contactId!, channel: 'DOCUMENT_REVIEW' },
+      where: { contactId: ticket.contactId, channel: 'DOCUMENT_REVIEW' },
       orderBy: { createdAt: 'asc' },
     });
     ok(res, interactions);

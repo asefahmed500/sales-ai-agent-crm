@@ -6,19 +6,19 @@ import type { Interaction } from "@/lib/types";
 
 export default function PortalMessagesPage() {
   const [messages, setMessages] = useState<Interaction[]>([]);
+  const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   function load() {
-    api.getClientConversation().then(setMessages).catch(() => setMessages([]));
+    api.getClientConversation().then(setMessages).catch(() => setMessages([])).finally(() => setLoading(false));
   }
 
   useEffect(() => { load(); }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  // Poll for new messages every 3 seconds
   useEffect(() => {
     const id = setInterval(load, 3000);
     return () => clearInterval(id);
@@ -43,22 +43,28 @@ export default function PortalMessagesPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="space-y-3">
-          {messages.length === 0 && <div className="py-12 text-center text-sm text-gray-400">No messages yet. Start a conversation!</div>}
-          {messages.map((m) => (
-            <Fragment key={m.id}>
-              <div className={`flex ${m.direction === "INBOUND" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[70%] rounded-xl px-4 py-2.5 text-sm ${m.direction === "INBOUND" ? "bg-sky-500 text-white" : "bg-gray-100 text-gray-900"}`}>
-                  <p>{m.content}</p>
-                  <p className={`mt-0.5 text-[10px] ${m.direction === "INBOUND" ? "text-sky-100" : "text-gray-400"}`}>
-                    {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </p>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-sky-500 border-t-transparent" />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {messages.length === 0 && <div className="py-12 text-center text-sm text-gray-400">No messages yet. Start a conversation!</div>}
+            {messages.map((m) => (
+              <Fragment key={m.id}>
+                <div className={`flex ${m.direction === "INBOUND" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[70%] rounded-xl px-4 py-2.5 text-sm ${m.direction === "INBOUND" ? "bg-sky-500 text-white" : "bg-gray-100 text-gray-900"}`}>
+                    <p>{m.content}</p>
+                    <p className={`mt-0.5 text-[10px] ${m.direction === "INBOUND" ? "text-sky-100" : "text-gray-400"}`}>
+                      {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </Fragment>
-          ))}
-          <div ref={bottomRef} />
-        </div>
+              </Fragment>
+            ))}
+            <div ref={bottomRef} />
+          </div>
+        )}
       </div>
 
       <div className="border-t border-gray-100 px-4 py-3">

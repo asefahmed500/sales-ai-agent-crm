@@ -39,10 +39,10 @@ export default function ClientsPage() {
       api.getCrmUsers().catch(() => []),
     ])
       .then(([c, co, l, u]) => {
-        setContacts((c as { items: Contact[] }).items ?? []);
-        setCompanies((co as { items: Company[] }).items ?? []);
-        setLinks(l as OnboardingLink[]);
-        setUsers((u as CrmUser[]).filter((x) => x.role === "CLIENT"));
+        setContacts(Array.isArray(c) ? c : ((c as { items: Contact[] }).items ?? []));
+        setCompanies(Array.isArray(co) ? co : ((co as { items: Company[] }).items ?? []));
+        setLinks(Array.isArray(l) ? l : []);
+        setUsers(Array.isArray(u) ? u.filter((x: CrmUser) => x.role === "CLIENT") : []);
       })
       .finally(() => setLoading(false));
   }
