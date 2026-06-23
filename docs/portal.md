@@ -67,7 +67,7 @@ The portal layout handles:
 
 1. **Auth guard**: Checks `sg_token` in localStorage. If missing → redirect to `/portal/login`. If role is not `CLIENT` → redirect to `/dashboard`.
 2. **No-auth routes**: `["/portal/login", "/portal/register"]` skip auth entirely to avoid redirect loops.
-3. **Navigation**: 5 nav items: Dashboard, My Deals, My Tickets, Messages, Documents, Profile.
+3. **Navigation**: 6 nav items: Dashboard, My Deals, My Tickets, Messages, Documents, Profile.
 4. **SSE notifications**: Connects to `/api/notifications/stream/:userId?token=...` to receive real-time notifications from admin actions.
 5. **Bell icon**: Shows unread notification count with dropdown.
 

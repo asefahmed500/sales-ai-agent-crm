@@ -252,7 +252,7 @@ All CRUD verify tenant ownership before operations — every `findFirst` include
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /api/crm/conversations` | List all contacts with last message + unread count |
+| `GET /api/crm/conversations` | List all contacts with last message + total message count |
 | `GET /api/crm/conversations/:contactId/messages` | Full conversation history |
 | `POST /api/crm/conversations/:contactId/messages` | Send admin reply |
 | `POST /api/crm/conversations/:contactId/close` | Close conversation |

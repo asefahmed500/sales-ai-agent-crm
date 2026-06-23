@@ -127,17 +127,16 @@ runDueTasks()
 │   ├── executeTask(task)
 │   ├── Update lastRunAt + nextRunAt (current time + interval)
 │   └── On error: status = 'FAILED'
-└── Tasks processed: research_niche, check_pipeline, enrich_contacts, send_followups
+└── Tasks processed: LEAD_ENRICHMENT, FOLLOW_UP, PIPELINE_ADVANCE
 ```
 
 ### Task Types
 
 | Type | Agent | Description | Default Interval |
 |------|-------|-------------|-----------------|
-| `research_niche` | scout | Searches web for leads in configured niche | 3600s (1 hour) |
-| `check_pipeline` | rep | Analyzes pipeline for stalled deals | 3600s |
-| `enrich_contacts` | scout | Enriches contact data | 7200s (2 hours) |
-| `send_followups` | rep | Sends automated follow-up messages | 86400s (24 hours) |
+| `LEAD_ENRICHMENT` | scout | Searches web for leads (via Tavily/generator), creates companies + contacts in CRM | 3600s (1 hour) |
+| `FOLLOW_UP` | rep | Finds stale DISCOVERY contacts with no recent interactions, flags for follow-up | 3600s |
+| `PIPELINE_ADVANCE` | scout | Auto-advances PROSPECT contacts with score >= 70 to QUALIFIED stage | 3600s |
 
 Scheduler tasks can be managed via CRM routes:
 - `GET /api/crm/agent-tasks` — List tasks
