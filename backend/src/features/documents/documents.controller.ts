@@ -36,9 +36,10 @@ export async function uploadDocument(req: Request, res: Response, next: NextFunc
         description: JSON.stringify({ text: description || '', files: filePaths }),
         priority: 'MEDIUM', status: 'PENDING_REVIEW',
         category: 'DOCUMENT_REVIEW',
-        contactId: user?.contactId, companyId: contact?.companyId,
         tenant: { connect: { id: tenantId } },
-      } as any,
+        ...(user?.contactId ? { contact: { connect: { id: user.contactId } } } : {}),
+        ...(contact?.companyId ? { company: { connect: { id: contact.companyId } } } : {}),
+      },
     });
 
     const owners = await prisma.user.findMany({ where: { tenantId, role: 'OWNER' } });
@@ -77,9 +78,10 @@ export async function reviewDocument(req: Request, res: Response, next: NextFunc
         data: {
           channel: 'DOCUMENT_REVIEW', direction: 'INBOUND',
           content: JSON.stringify({ reviewer: req.user!.name, comment }),
-          contactId: ticket.contactId, companyId: ticket.companyId,
           tenant: { connect: { id: tenantId } },
-        } as any,
+          ...(ticket.contactId ? { contact: { connect: { id: ticket.contactId } } } : {}),
+          ...(ticket.companyId ? { company: { connect: { id: ticket.companyId } } } : {}),
+        },
       });
 
       if (ticket.contactId) {

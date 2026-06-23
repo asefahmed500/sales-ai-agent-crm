@@ -103,7 +103,7 @@ export async function createContact(req: Request, res: Response, next: NextFunct
     const tenantId = req.user!.tenantId;
     const { name, email, phone, role, stage, companyId, source, tags } = req.body;
     const contact = await prisma.contact.create({
-      data: { name, email, phone, role, stage, companyId, source, tags, tenant: { connect: { id: tenantId } } },
+      data: { name, email, phone, role, stage, source, tags, tenant: { connect: { id: tenantId } }, ...(companyId ? { company: { connect: { id: companyId } } } : {}) },
     });
     notify(req.user!.id, 'contact_created', 'New Contact', `${name} was added to CRM`);
     created(res, contact);
@@ -124,7 +124,8 @@ export async function updateContact(req: Request, res: Response, next: NextFunct
     const tenantId = req.user!.tenantId;
     const existing = await prisma.contact.findFirst({ where: { id: String(req.params.id), tenantId } });
     if (!existing) return next(new NotFoundError('Contact'));
-    const contact = await prisma.contact.update({ where: { id: String(req.params.id) }, data: req.body });
+    const { companyId, ...contactBody } = req.body;
+    const contact = await prisma.contact.update({ where: { id: String(req.params.id) }, data: { ...contactBody, ...(companyId ? { company: { connect: { id: companyId } } } : {}) } });
     ok(res, contact);
   } catch (err) { next(err); }
 }
@@ -268,7 +269,8 @@ export async function updateDeal(req: Request, res: Response, next: NextFunction
     const tenantId = req.user!.tenantId;
     const existing = await prisma.deal.findFirst({ where: { id: String(req.params.id), tenantId } });
     if (!existing) return next(new NotFoundError('Deal'));
-    const deal = await prisma.deal.update({ where: { id: String(req.params.id) }, data: req.body });
+    const { contactId: dealContactId, companyId: dealCompanyId, ...dealBody } = req.body;
+    const deal = await prisma.deal.update({ where: { id: String(req.params.id) }, data: { ...dealBody, ...(dealContactId ? { contact: { connect: { id: dealContactId } } } : {}), ...(dealCompanyId ? { company: { connect: { id: dealCompanyId } } } : {}) } });
     ok(res, deal);
   } catch (err) { next(err); }
 }
@@ -351,7 +353,7 @@ export async function createTicket(req: Request, res: Response, next: NextFuncti
     const tenantId = req.user!.tenantId;
     const { subject, description, priority, category, contactId, companyId } = req.body;
     const ticket = await prisma.ticket.create({
-      data: { subject, description, priority, category, contactId, companyId, tenant: { connect: { id: tenantId } } } as any,
+      data: { subject, description, priority, category, tenant: { connect: { id: tenantId } }, ...(contactId ? { contact: { connect: { id: contactId } } } : {}), ...(companyId ? { company: { connect: { id: companyId } } } : {}) },
     });
     notify(req.user!.id, 'ticket_created', 'New Ticket', `"${subject}" ticket opened`);
     created(res, ticket);
@@ -372,7 +374,8 @@ export async function updateTicket(req: Request, res: Response, next: NextFuncti
     const tenantId = req.user!.tenantId;
     const existing = await prisma.ticket.findFirst({ where: { id: String(req.params.id), tenantId } });
     if (!existing) return next(new NotFoundError('Ticket'));
-    const ticket = await prisma.ticket.update({ where: { id: String(req.params.id) }, data: req.body });
+    const { contactId: tktContactId, companyId: tktCompanyId, ...ticketBody } = req.body;
+    const ticket = await prisma.ticket.update({ where: { id: String(req.params.id) }, data: { ...ticketBody, ...(tktContactId ? { contact: { connect: { id: tktContactId } } } : {}), ...(tktCompanyId ? { company: { connect: { id: tktCompanyId } } } : {}) } });
     ok(res, ticket);
   } catch (err) { next(err); }
 }
@@ -413,8 +416,10 @@ export async function updateUser(req: Request, res: Response, next: NextFunction
     const tenantId = req.user!.tenantId;
     const existing = await prisma.user.findFirst({ where: { id: String(req.params.id), tenantId } });
     if (!existing) return next(new NotFoundError('User'));
-    const data: any = { ...req.body };
+    const { contactId: userContactId, ...userData } = req.body;
+    const data: any = { ...userData };
     if (data.password) data.password = await bcrypt.hash(data.password, 10);
+    if (userContactId) data.contact = { connect: { id: userContactId } };
     const user = await prisma.user.update({
       where: { id: String(req.params.id) }, data,
       select: { id: true, email: true, name: true, role: true, isActive: true },

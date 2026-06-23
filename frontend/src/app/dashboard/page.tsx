@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { AdminDashboard, Contact, Deal } from "@/lib/types";
-import { useDashboardUser } from "./layout";
+import { useDashboardUser } from "./user-context";
 
 function fmt(n: number): string {
   if (!n) return "$0";

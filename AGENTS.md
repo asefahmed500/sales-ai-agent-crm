@@ -1,119 +1,152 @@
 # SalesGenius
 
-Multi-agent AI sales/support platform. Monorepo with two independent packages, no workspace.
+Multi-agent AI sales/support platform. Monorepo — two independent packages, no workspace.
 
 ## Structure
 
 ```
-frontend/   Next.js 16.2.9 + React 19 + Tailwind CSS 4 (App Router) — port :3000
-backend/    Express 5 + Prisma 7 + PostgreSQL + Vercel AI SDK — port :4000
+frontend/   Next.js 16.2.9 + React 19 + Tailwind CSS 4 (App Router) — :3000
+backend/    Express 5 + Prisma 7 + PostgreSQL + Vercel AI SDK — :4000
 ```
 
-Each has own `node_modules`, scripts, tsconfig. No shared code.
+Each has own `node_modules`, `tsconfig`, scripts. No shared code. No CI (`.github/workflows/` absent). No test runner in either project — CI gate is `npm run build` (typecheck).
+
+## Quick-start
+
+```bash
+# 1. Start database
+docker compose up -d db
+
+# 2. Backend
+cd backend
+npm run prisma:generate
+npm run dev                    # :4000
+
+# 3. Frontend (separate terminal)
+cd frontend
+npm run dev                    # :3000
+
+# Seed (optional)
+cd backend && npx tsx prisma/seed.runtime.mjs
+```
 
 ## Commands
 
 ### Backend (`backend/`)
-
-| Command | What it does |
-|---------|-------------|
-| `npm run dev` | `tsx watch src/main.ts` — hot reload on :4000 |
-| `npm run build` | `tsc` — compiles `src/` → `dist/` |
-| `npm run prisma:generate` | Generate Prisma client (required after schema changes) |
+| Command | What |
+|---------|------|
+| `npm run dev` | `tsx watch src/main.ts` — hot reload |
+| `npm run build` | `tsc` — `src/` → `dist/` |
+| `npm run prisma:generate` | Generate Prisma client (after schema changes) |
 | `npm run prisma:migrate` | Run migrations |
-| `npx tsx prisma/seed.runtime.mjs` | Seed demo tenant + admin + sample data |
 
-**Startup order:** PostgreSQL first, then `prisma generate`, then `npm run dev`.
+Startup order: **PostgreSQL → `prisma generate` → `npm run dev`**
 
 ### Frontend (`frontend/`)
-
-| Command | What it does |
-|---------|-------------|
+| Command | What |
+|---------|------|
 | `npm run dev` | `next dev` — :3000 |
 | `npm run build` | `next build` (typechecks too) |
+| `npm run lint` | ESLint (not a CI gate) |
 
-No test runner. Frontend `npm run lint` (eslint) exists but CI gate is `npm run build` (typechecks too).
+Full-stack Docker: `docker compose up` (builds both, applies schema, seeds, starts on :3000 + :4000)
 
 ## Architecture
 
-### Two apps, one backend
-- **Admin dashboard** (`/dashboard/*`) — CRM: contacts, companies, deals (drag-and-drop kanban via @dnd-kit), tickets, agent chat, clients, document reviews, notifications
-- **Client portal** (`/portal/*`) — client-facing: dashboard, deals (submit offers), tickets, documents (upload + feedback), profile. Login at `/portal/login`, register via magic link at `/portal/register?token=xxx`
+### Backend (feature-based)
+Each feature in `src/features/<name>/` owns `*.routes.ts` + `*.controller.ts`.
 
-### Backend API routes (Express)
+| Mount | Feature | Auth | Purpose |
+|-------|---------|------|---------|
+| `/api/auth/*` | `auth/` | None / JWT | Login, register (creates tenant), forgot/reset password, me |
+| `/api/crm/*` | `crm/` | JWT + OWNER | CRM CRUD — contacts, companies, deals, tickets, users, conversations, agent-tasks, dashboard |
+| `/api/client/*` | `client/` | JWT + CLIENT | Portal: deals, tickets, interactions, profile, conversation |
+| `/api/onboarding/*` | `onboarding/` | Mixed | Generate invitation link, verify, complete (creates CLIENT user) |
+| `/api/documents/*` | `documents/` | JWT + role | Upload (CLIENT), list/review (OWNER) |
+| `/api/agent/*` | `chat/` | Mixed | Agent chat, trajectory SSE stream, interaction history |
+| `/api/*` | `public/` | Mixed | Pipeline summary, contacts list, agents list |
+| `/api/notifications/*` | `notifications/` | JWT in query | SSE notification stream per user |
 
-| Route | File | Auth | Purpose |
-|-------|------|------|---------|
-| `/api/auth/*` | `auth.ts` | None (login/register), JWT (me) | Login, register (creates tenant), forgot/reset password |
-| `/api/crm/*` | `crm.ts` | JWT + `requireRole('OWNER')` | All CRM CRUD — contacts, companies, deals, tickets, pipeline, users, agent-tasks, dashboard, deal comments |
-| `/api/client/*` | `client.ts` | JWT + `requireRole('CLIENT')` | Client portal: deals (create offers), tickets, interactions, profile, deal comments |
-| `/api/onboarding/*` | `onboarding.ts` | JWT (generate), none (verify/complete) | Generate invitation + CLIENT user + temp password |
-| `/api/documents/*` | `documents.ts` | JWT + role | Upload files (CLIENT), list/review (OWNER) |
-| `/api/*` | `endpoints.ts` | Mixed | Agent chat (`/api/agent/chat`), pipeline summary, SSE notification stream |
+Other structural dirs: `src/config/env.ts`, `src/core/{database,errors,response}.ts`, `src/middleware/{auth,error-handler}.ts`, `src/types/`, `src/services/{agent_executor,agent_scheduler,crm_sync,email.service,web_search}.ts`
+
+### Frontend (all pages `"use client"`)
+- **Admin dashboard** `/dashboard/*` — contacts, companies, deals (kanban via @dnd-kit), tickets, agent chat, clients, documents, messages
+- **Client portal** `/portal/*` — dashboard, deals, tickets, documents (upload + feedback), messages, profile
+- Auth pages: `/login`, `/signup`, `/forgot-password`, `/reset-password`, `/portal/login`, `/portal/register`
 
 ### Authentication
-- JWT with `{ id, email, name, role, tenantId }`, expires in 7d
-- Every request re-checks DB for user existence + `isActive`
+- JWT (`{ id, email, name, role, tenantId }`) expires 7d, stored in `localStorage` key `sg_token`
+- Every request re-checks DB for `isActive`
 - Roles: `OWNER` (full access), `CLIENT` (portal only)
-- `requireRole(...roles)` middleware — CRM routes require `'OWNER'`
-- **Role redirection**: dashboard layout redirects non-OWNER to `/portal`; portal layout redirects non-CLIENT to `/dashboard`; `/login` redirects CLIENT to `/portal`
+- `requireRole(...roles)` middleware — CRM routes use `requireRole('OWNER')`
+- **Role redirect**: dashboard layout → non-OWNER gets sent to `/portal`; portal layout → non-CLIENT gets sent to `/dashboard`; `/login` → CLIENT gets sent to `/portal`
 - `generateToken()` in `src/middleware/auth.ts`
+- No OAuth providers — email/password only
 
 ### Multi-tenant
-- Each signup creates a `Tenant` + `OWNER` user
-- Every model has `tenantId`; every query filters by `req.user!.tenantId`
-- `Contact` has `@@unique([tenantId, email])` — email unique per tenant
+- Signup creates `Tenant` + `OWNER` user. Every model has `tenantId`. All queries filter by `req.user!.tenantId`.
+- `Contact` has `@@unique([tenantId, email])`.
 
 ### Notifications
-- **SSE**: `GET /api/notifications/stream/:userId` emits real-time events. Frontend connects on dashboard/portal mount. Must filter `type === "connected"` in `onmessage` to avoid blank notifications.
-- **Email**: Nodemailer via Gmail SMTP (App Password). Env vars: `GMAIL_USER`, `GMAIL_APP_PASSWORD`. Sends invitation, password reset, onboarding notification emails.
+- **SSE**: `GET /api/notifications/stream/:userId?token=<jwt>` — EventSource requires token in URL (no custom headers). Must filter `type === "connected"` / `"keepalive"` in `onmessage`.
+- **Email**: Nodemailer via Gmail SMTP (App Password). Env: `GMAIL_USER`, `GMAIL_APP_PASSWORD`. Sends invitation, password reset, onboarding notification.
 
 ### Agent system
-- AI agent pipeline in `src/services/agent_executor.ts` — uses Vercel AI SDK. Falls back to deterministic mock loop when no API keys set.
-- Background scheduler (`agent_scheduler.ts`) runs self-executing agent tasks (lead enrichment, follow-ups, pipeline advancement) every 60s.
+- Agent pipeline in `src/services/agent_executor.ts` — uses Vercel AI SDK (`generateText` + tools). Falls back to deterministic mock loop when no API key set.
+- Background scheduler (`agent_scheduler.ts`) runs self-executing agent tasks every 60s.
 
 ### Data model (Prisma — 12 models)
-Tenant, User (OWNER/CLIENT), Company, Contact, Deal, Ticket, Interaction, AgentTrajectory, OnboardingLink, AgentTask, ContentLibrary (Float[] embedding), CrmOutbox
+`Tenant`, `User` (OWNER/CLIENT), `Company`, `Contact`, `Deal`, `Ticket`, `Interaction`, `AgentTrajectory`, `OnboardingLink`, `AgentTask`, `ContentLibrary` (Float[] embedding), `CrmOutbox` ⚠️ **no tenantId column** — cannot tenant-filter.
 
 ### File uploads
-- Multer stores files in `backend/public/uploads/`, served via Express static at `/uploads/`
+- Multer → `backend/public/uploads/`, served via Express static at `/uploads/`
 - Document review: files attached as Ticket with `category: 'DOCUMENT_REVIEW'`, file paths stored as JSON in `description`
+- `api.uploadDocument()` takes `FormData`. Do NOT set `Content-Type` — omit it so browser sets `multipart/form-data` boundary.
 
-## Key Files
+## Conventions
+
+- Backend: **ESM** (`"type": "module"`). All local imports use `.js` extensions. `tsconfig`: `module: NodeNext`, `moduleResolution: NodeNext`.
+- Frontend: `tsconfig`: `module: esnext`, `moduleResolution: bundler`. Path alias `@/*` → `./src/*`.
+- `backendUrl` exported from `src/lib/api.ts` (also the `BASE` for all API calls).
+- React 19: use `<Fragment key={...}>` not `<>` inside `.map()`.
+- `api.getMe()` returns `any` — backend `User` has fields (like `contactId`) not in frontend `DashboardUser`. Cast `as any` when needed.
+- Frontend `Contact` type has `company: {…} | null` but backend stores `companyId` scalar. Pass `companyId: "..."`, not `company: { id: "..." }`.
+- Portal layout skips auth for `/portal/login` and `/portal/register` (`noAuthRoutes` list) to avoid redirect loops.
+- Deal feedback: uses `Interaction` + `channel: 'DEAL_FEEDBACK'`. Client = `direction: 'INBOUND'`, admin reply = `direction: 'OUTBOUND'`. Admin reply notifies client via SSE.
+
+## Key files
 
 | Purpose | File |
 |---------|------|
 | Backend entry | `src/main.ts` |
+| Express app factory | `src/app.ts` |
 | Auth middleware + JWT | `src/middleware/auth.ts` |
-| All API routers | `src/api/*.ts` |
-| Email (Nodemailer) | `src/services/email.service.ts` |
+| Error handler | `src/middleware/error-handler.ts` |
+| Env config | `src/config/env.ts` |
+| Errors | `src/core/errors.ts` |
+| Prisma client | `src/core/database.ts` |
 | Agent executor | `src/services/agent_executor.ts` |
-| SSE notifications | `src/api/endpoints.ts` (stream) |
+| Agent scheduler | `src/services/agent_scheduler.ts` |
+| Email (Nodemailer) | `src/services/email.service.ts` |
+| SSE notifications | `src/features/notifications/notifications.controller.ts` |
 | Seed data | `prisma/seed.runtime.mjs` |
 | Frontend API client | `src/lib/api.ts` |
-| Dashboard layout + sidebar | `src/app/dashboard/layout.tsx` |
-| Portal layout + sidebar | `src/app/portal/layout.tsx` |
-
-## Conventions
-
-- Backend is **ESM** (`"type": "module"`). All local imports use `.js` extensions.
-- Backend `tsconfig`: `module: NodeNext`, `moduleResolution: NodeNext`
-- Frontend `tsconfig`: `module: esnext`, `moduleResolution: bundler`
-- Frontend path alias: `@/*` → `./src/*`
-- All frontend pages are `"use client"` (no RSC)
-- Token stored in `localStorage` under key `sg_token`
-- `backendUrl` exported from `src/lib/api.ts` (also serves as `BASE`)
+| Frontend types | `src/lib/types.ts` |
+| Dashboard layout | `src/app/dashboard/layout.tsx` |
+| Portal layout | `src/app/portal/layout.tsx` |
+| Agent definitions | `src/lib/agents.ts` |
+| Conversation hook | `src/hooks/use-conversations.ts` |
 
 ## Gotchas
 
-- **Fragment keys**: React 19 requires `<Fragment key={...}>` instead of `<>` inside `.map()`
-- **`getMe` type**: returns `any` — backend `User` has fields (like `contactId`) not in frontend `DashboardUser` interface. Cast with `as any` when needed.
-- **SSE notifications**: Must filter `type === "connected"` in `onmessage` — backend sends a `connected` event on stream open.
-- **Contact type vs DB**: Frontend `Contact` has `company: {...} | null` but backend stores `companyId` scalar. Use `createContact(data: Partial<Contact> & { companyId?: string })` — pass `companyId: "..."`, not `company: { id: "..." }`.
-- **Seed file**: `prisma/seed.runtime.mjs` (`.mjs`, not `.ts`) — run with `npx tsx` not `node`.
-- **Next.js 16**: Check `node_modules/next/dist/docs/` for API changes before writing code — breaking changes from Next 15.
-- **Portal auth**: Portal layout skips auth for `/portal/login` and `/portal/register` (stored in `noAuthRoutes`) to avoid redirect loops.
-- **File upload**: `api.uploadDocument()` takes `FormData` and overrides `Content-Type` to `{}` so browser sets `multipart/form-data` boundary. Do NOT set `Content-Type` manually.
-- **Email**: Relies on Gmail App Password. Check `GMAIL_USER` + `GMAIL_APP_PASSWORD` in `backend/.env`. Backend logs `[EmailService]` messages on send.
-- **JWT secret**: Falls back to `'sg-dev-secret'` if `JWT_SECRET` not in `backend/.env`. Set a strong secret for anything beyond local dev.
-- **Deal feedback**: Uses `Interaction` model with `channel: 'DEAL_FEEDBACK'`. Client comments are `direction: 'INBOUND'`, admin replies are `direction: 'OUTBOUND'`. Admin reply notifies the client user via SSE.
+- **SSE token in URL**: `EventSource` cannot send custom headers. Token passed as `?token=<jwt>` query param. The stream endpoint decodes JWT directly (does not use `authMiddleware`).
+- **CrmOutbox no tenantId**: The `CrmOutbox` model lacks a `tenantId` column. Cannot tenant-filter without a migration.
+- **Seed file**: `prisma/seed.runtime.mjs` (`.mjs`, not `.ts`). Run with `npx tsx`, not `node`.
+- **JWT secret**: Falls back to `'sg-dev-secret'` if `JWT_SECRET` unset in `backend/.env`.
+- **Email**: Requires Gmail App Password. Logs `[EmailService]` messages on send.
+- **Prisma v7**: Uses `prisma.config.ts` (not `prisma/schema.prisma` alone) for config. Driver adapter via `@prisma/adapter-pg`.
+- **Next.js 16 breaking changes**: Check `node_modules/next/dist/docs/` before writing code.
+- **Fragment keys**: React 19 requires `<Fragment key={...}>` over `<>`.
+- **`use-conversations.ts`**: Conversations stored in `localStorage` key `salesgenius.conversations.v1`. Hook hydrates from storage in `useEffect` (SSR-safe).
+- **Deploy**: `docker compose up` builds and runs all services. Backend entrypoint applies schema + seeds on startup.
+- **Health**: Backend `/` returns HTML landing page (not JSON). Frontend health is Next.js built-in.

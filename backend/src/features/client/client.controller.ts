@@ -98,7 +98,7 @@ export async function createTicket(req: Request, res: Response, next: NextFuncti
     const contact = user?.contactId ? await prisma.contact.findUnique({ where: { id: user.contactId }, select: { companyId: true } }) : null;
     const { subject, description, priority, category } = req.body;
     const ticket = await prisma.ticket.create({
-      data: { subject, description, priority, category, contactId: user?.contactId, companyId: contact?.companyId, tenant: { connect: { id: tenantId } } } as any,
+      data: { subject, description, priority, category, tenant: { connect: { id: tenantId } }, ...(user?.contactId ? { contact: { connect: { id: user.contactId } } } : {}), ...(contact?.companyId ? { company: { connect: { id: contact.companyId } } } : {}) },
     });
     created(res, ticket);
   } catch (err) { next(err); }
