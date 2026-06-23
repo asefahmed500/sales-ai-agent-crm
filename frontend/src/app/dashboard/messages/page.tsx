@@ -14,6 +14,7 @@ interface ContactItem {
 
 export default function AdminMessagesPage() {
   const [contacts, setContacts] = useState<ContactItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Interaction[]>([]);
@@ -25,7 +26,7 @@ export default function AdminMessagesPage() {
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(""), 2500); }
 
   function loadContacts() {
-    api.getConversations().then(setContacts).catch(() => {});
+    api.getConversations().then(setContacts).catch(() => {}).finally(() => setLoading(false));
   }
 
   function loadMessages(contactId: string) {
@@ -84,7 +85,11 @@ export default function AdminMessagesPage() {
           />
         </div>
         <div className="flex-1 overflow-y-auto">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-sky-500 border-t-transparent" />
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-gray-400">No contacts found</div>
           ) : (
             filtered.map((c) => {

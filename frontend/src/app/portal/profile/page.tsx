@@ -23,7 +23,13 @@ export default function PortalProfile() {
     } catch { setMsg("Update failed"); }
   }
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-sky-500 border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

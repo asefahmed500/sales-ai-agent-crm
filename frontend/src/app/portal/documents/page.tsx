@@ -19,6 +19,7 @@ const statusBadge: Record<string, string> = {
 
 export default function PortalDocuments() {
   const [docs, setDocs] = useState<DocTicket[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
@@ -28,7 +29,10 @@ export default function PortalDocuments() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [comments, setComments] = useState<any[]>([]);
 
-  useEffect(() => { api.getMyDocuments().then(setDocs).catch(() => {}); }, []);
+  useEffect(() => {
+    setLoading(true);
+    api.getMyDocuments().then(setDocs).catch(() => {}).finally(() => setLoading(false));
+  }, []);
 
   async function handleSubmit(ev: FormEvent) {
     ev.preventDefault();
@@ -103,7 +107,11 @@ export default function PortalDocuments() {
         </div>
       )}
 
-      {docs.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-sky-500 border-t-transparent" />
+        </div>
+      ) : docs.length === 0 ? (
         <div className="rounded-xl bg-white py-10 text-center text-sm text-gray-400 shadow-sm ring-1 ring-gray-200">No documents submitted yet</div>
       ) : (
         <div className="space-y-3">
